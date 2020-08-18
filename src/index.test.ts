@@ -1,4 +1,4 @@
-import { StateDefinition, Path } from '../@types/module'
+import { StateDefinition, Path, State } from '../@types/module'
 import { createStateMachine } from './index'
 
 const testStates = [
@@ -49,11 +49,11 @@ const testStates = [
     transitions: ['parallel2']
   }, {
     id: 'parallel1',
-    AND: ['parallelStart'],
+    OR: ['parallelStart', 'parallel2'],
     transitions: ['parallel2', 'parallelEnd']
   }, {
     id: 'parallel2',
-    AND: ['parallelStart'],
+    OR: ['parallelStart', 'parallel1'],
     transitions: ['parallel1', 'parallelEnd']
   }, {
     id: 'parallelEnd',
@@ -70,7 +70,7 @@ const testStates = [
 describe('state machine', () => {
   const testSM = createStateMachine(testStates)
 
-  function transitionAlongPath (path: Path) {
+  function transitionAlongPath (path: Path): State[] {
     let history = []
     path.forEach((state) => {
       history = testSM.transition.exec(history, state)
@@ -93,6 +93,15 @@ describe('state machine', () => {
     })
 
     test('success; full loop', () => {
+      const path = ['start', 'beginning', 'option1', 'middle', 'parallel1', 'parallel2', 'end']
+      const pathWithInternals = [
+        'start', 'beginning', 'optionStart', 'option1', 'optionEnd', 'middle', 'parallelStart', 'parallel1', 'parallel2', 'parallelEnd', 'end']
+
+      const history = transitionAlongPath(path)
+      expect(history.map(i => i.id)).toStrictEqual(pathWithInternals)
+    })
+
+    test('success; valid chain', () => {
       const path = ['start', 'beginning', 'option1', 'middle', 'parallel1', 'parallel2', 'end']
       const pathWithInternals = [
         'start', 'beginning', 'optionStart', 'option1', 'optionEnd', 'middle', 'parallelStart', 'parallel1', 'parallel2', 'parallelEnd', 'end']

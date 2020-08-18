@@ -7,17 +7,19 @@ export function transitionConstructor (stateById: StateMapping) {
   function _isOrAllowed (history: State[], dest: StateId) {
     const destState = stateById[dest]
     if (!destState.OR || !destState.OR.length) return true // no OR; therefore all allowed
-    return destState.OR.map(id => {
-      return history.some(state => state.id === id && !state.isReverted)
-    }).some(b => b) // any true enough
+    if (destState.id === history[history.length - 1].id) return true
+
+    const lookBackLength = destState.OR.length
+    return history.slice(-lookBackLength).some(h => destState.OR.includes(h.id)) // any true enough
   }
 
   function _isAndAllowed (history: State[], dest: StateId) {
     const destState = stateById[dest]
     if (!destState.AND || !destState.AND.length) return true // no AND; therefore all allowed
-    return destState.AND.map(id => {
-      return history.some(state => state.id === id)
-    }).every(b => b) // every needs to be true
+    if (destState.id === history[history.length - 1].id) return true
+
+    const lookBackLength = destState.AND.length
+    return history.slice(-lookBackLength).every(h => destState.AND.includes(h.id)) // every needs to be true
   }
 
   // TODO: decide on: possible want to return tuple with [success, State[]]; instead of throwing
@@ -37,10 +39,10 @@ export function transitionConstructor (stateById: StateMapping) {
 
     const newHistory = [...history.slice(0, -1)] // remove last, since first in path always currentState
 
-    path.forEach(state => {
-      const isAllowed = _isOrAllowed(newHistory, state) && _isAndAllowed(newHistory, state)
-      if (!isAllowed) throw new Error(`Not allowed; dest ${state} requisites not met`)
-      newHistory.push(stateById[state])
+    path.forEach(stateId => {
+      const isAllowed = _isOrAllowed(newHistory, stateId) && _isAndAllowed(newHistory, stateId)
+      if (!isAllowed) throw new Error(`Not allowed; dest ${stateId} requisites not met`)
+      newHistory.push({ id: stateId })
     })
 
     return newHistory
