@@ -13,6 +13,38 @@ export function transitionConstructor (stateById: StateMapping) {
     return history.slice(-lookBackLength).some(h => destState.OR.includes(h.id)) // any true enough
   }
 
+  function _findInvalid (history: string[]): [number, number][] {
+    const set = new Set(history)
+    if (set.size === history.length) return [] // no duplicates
+    const dupIndexes = history.reduce<{[key: string]: number[]}>((dupIndexes, s, index) => {
+      if (!dupIndexes[s]) dupIndexes[s] = []
+      dupIndexes[s] = [...dupIndexes[s], index]
+      return dupIndexes
+    }, {})
+
+    let alreadyInvalid: [number, number] = [0, 0]
+    return Object.values(dupIndexes).reduce<[number, number][]>((invalidedRanges, indexes) => {
+      const jumps = indexes.reduce<[number, number][]>((jumps, c, i) => {
+        const nextI = i + 1
+        if (nextI >= indexes.length) return jumps // if uneven; then last one is latest and cannot be invalidated
+
+        // filter out repeats
+        if (c + 1 === indexes[nextI]) return jumps
+
+        // filter out those that are already invalidated
+        const jump: [number, number] = [c, indexes[nextI]]
+        if (c > alreadyInvalid[0] && c < alreadyInvalid[1]) return jumps
+        alreadyInvalid = jump
+
+        return [...jumps, jump]
+      }, [])
+
+      return [...invalidedRanges, ...jumps]
+    }, [])
+  }
+
+  // TODO: send-back logic; if sent back the lookBack isnt there, should detect when sent back and return true;
+  // possibly just evaluate whole
   function _isAndAllowed (history: State[], dest: StateId) {
     const destState = stateById[dest]
     if (!destState.AND || !destState.AND.length) return true // no AND; therefore all allowed
@@ -24,6 +56,12 @@ export function transitionConstructor (stateById: StateMapping) {
 
   // TODO: decide on: possible want to return tuple with [success, State[]]; instead of throwing
   function exec (history: State[], dest: StateId): State[] {
+    const invalid = _findInvalid(history.map(i => i.id))
+
+    if (invalid.length > 0) {
+      console.log(invalid, history)
+    }
+
     const currentStateId = findLatestState(stateById, history)?.id
     if (!currentStateId) { // if history empty; only beginning state allowed
       const state = stateById[dest]
