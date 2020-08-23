@@ -1,10 +1,10 @@
-import { State, InternalState, StateId, StateMapping, Path } from '../@types/module'
+import { History, InternalState, StateId, StateMapping, Path } from '../@types/module'
 
-export function transitionHelper (stateById: StateMapping, transitionType: 'transitions' | 'revertTransitions') {
+export function transitionHelper (stateDefinitionById: StateMapping, transitionType: 'transitions' | 'revertTransitions') {
   function findTransitionRoutes (state: InternalState, path = [] as Path): ([InternalState, Path])[] {
     if (state.isEnd) return []
 
-    const states = state[transitionType].map(s => stateById[s])
+    const states = state[transitionType].map(s => stateDefinitionById[s])
 
     const externalTransitions: [InternalState, Path][] = states.filter(s => !s.isInternal).map(s => ([s, [...path, state.id, s.id]]))
 
@@ -26,11 +26,11 @@ export function transitionHelper (stateById: StateMapping, transitionType: 'tran
   }
 
   function getOptions (state: StateId): StateId[] {
-    const _state = stateById[state]
+    const _state = stateDefinitionById[state]
     return Array.from(new Set(findTransitionRoutes(_state).flatMap(x => {
       return x[1].slice(1)
     }))).reduce<StateId[]>((states, state) => {
-      if (stateById[state].isInternal) return states
+      if (stateDefinitionById[state].isInternal) return states
       states.push(state)
       return states
     }, [])
@@ -39,9 +39,9 @@ export function transitionHelper (stateById: StateMapping, transitionType: 'tran
   return { findTransitionRoutes, isValidDestination, getOptions }
 }
 
-export function findLatestState (stateById: StateMapping, history: State[]) {
+export function findLatestState (stateById: StateMapping, history: History) {
   return [...history].reverse().find(state => {
-    const _state = stateById[state.id]
-    return !_state.isReverted && !_state.isInternal
+    const _state = stateById[state]
+    return !_state.isInternal
   })
 }

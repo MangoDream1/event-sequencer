@@ -1,24 +1,22 @@
-import { InternalState, StateDefinition, StateMapping, State } from '../@types/module'
+import { InternalState, StateDefinition, StateMapping, History } from '../@types/module'
 import { transitionConstructor } from './transition'
-import { revertConstructor } from './revert'
 
 export function createStateMachine (stateDefinitions: StateDefinition[]) {
-  const stateById: StateMapping = {}
+  const stateDefinitionById: StateMapping = {}
   stateDefinitions.forEach(s => {
-    stateById[s.id] = {
+    stateDefinitionById[s.id] = {
       ...s,
       transitions: s.transitions || [],
       revertTransitions: s.revertTransitions || []
     } as InternalState
   })
 
-  const transition = transitionConstructor(stateById)
-  const revert = revertConstructor(stateById)
+  const transition = transitionConstructor(stateDefinitionById)
 
   // TODO: add check for if the reverts where legal
-  function checkValidity (history: State[]) {
+  function checkValidity (history: History) {
     return history.every((state, index) => {
-      const _state = stateById[state.id]
+      const _state = stateDefinitionById[state]
 
       if (_state.isReverted) return true
       if (_state.isInternal) return true // skip internals
@@ -26,5 +24,5 @@ export function createStateMachine (stateDefinitions: StateDefinition[]) {
     })
   }
 
-  return { transition, revert, checkValidity }
+  return { transition, checkValidity }
 }

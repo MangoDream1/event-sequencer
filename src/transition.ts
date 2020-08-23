@@ -1,19 +1,19 @@
-import { State, StateId, StateMapping } from '../@types/module'
+import { History, StateId, StateMapping } from '../@types/module'
 import { transitionHelper, findLatestState } from './utils'
 
-export function transitionConstructor (stateById: StateMapping) {
-  const { isValidDestination, getOptions } = transitionHelper(stateById, 'transitions')
+export function transitionConstructor (stateDefinitionById: StateMapping) {
+  const { isValidDestination, getOptions } = transitionHelper(stateDefinitionById, 'transitions')
 
-  function _isOrAllowed (history: State[], dest: StateId) {
-    const destState = stateById[dest]
+  function _isOrAllowed (history: History, dest: StateId) {
+    const destState = stateDefinitionById[dest]
     if (!destState.OR || !destState.OR.length) return true // no OR; therefore all allowed
-    if (destState.id === history[history.length - 1].id) return true
+    if (destState.id === history[history.length - 1]) return true
 
     const lookBackLength = destState.OR.length
-    return history.slice(-lookBackLength).some(h => destState.OR.includes(h.id)) // any true enough
+    return history.slice(-lookBackLength).some(h => destState.OR.includes(h)) // any true enough
   }
 
-  function _findInvalid (history: string[]): [number, number][] {
+  function _findInvalid (history: History): [number, number][] {
     const set = new Set(history)
     if (set.size === history.length) return [] // no duplicates
     const dupIndexes = history.reduce<{[key: string]: number[]}>((dupIndexes, s, index) => {
@@ -45,32 +45,32 @@ export function transitionConstructor (stateById: StateMapping) {
 
   // TODO: send-back logic; if sent back the lookBack isnt there, should detect when sent back and return true;
   // possibly just evaluate whole
-  function _isAndAllowed (history: State[], dest: StateId) {
-    const destState = stateById[dest]
+  function _isAndAllowed (history: History, dest: StateId) {
+    const destState = stateDefinitionById[dest]
     if (!destState.AND || !destState.AND.length) return true // no AND; therefore all allowed
-    if (destState.id === history[history.length - 1].id) return true
+    if (destState.id === history[history.length - 1]) return true
 
     const lookBackLength = destState.AND.length
-    return history.slice(-lookBackLength).every(h => destState.AND.includes(h.id)) // every needs to be true
+    return history.slice(-lookBackLength).every(h => destState.AND.includes(h)) // every needs to be true
   }
 
   // TODO: decide on: possible want to return tuple with [success, State[]]; instead of throwing
-  function exec (history: State[], dest: StateId): State[] {
-    const invalid = _findInvalid(history.map(i => i.id))
+  function exec (history: History, dest: StateId): History {
+    const invalid = _findInvalid(history)
 
     if (invalid.length > 0) {
       console.log(invalid, history)
     }
 
-    const currentStateId = findLatestState(stateById, history)?.id
+    const currentStateId = findLatestState(stateDefinitionById, history)
     if (!currentStateId) { // if history empty; only beginning state allowed
-      const state = stateById[dest]
+      const state = stateDefinitionById[dest]
       if (state.isBeginning) {
-        return [stateById[dest]]
+        return [stateDefinitionById[dest].id]
       }
       throw new Error('Not allowed; history is empty, no beginning')
     }
-    const currentState = stateById[currentStateId]
+    const currentState = stateDefinitionById[currentStateId]
 
     const [valid, path] = isValidDestination(currentState, dest)
     if (!valid) throw new Error(`Not allowed; no path to destination; ${currentState.id} to ${dest}`)
@@ -80,13 +80,13 @@ export function transitionConstructor (stateById: StateMapping) {
     path.forEach(stateId => {
       const isAllowed = _isOrAllowed(newHistory, stateId) && _isAndAllowed(newHistory, stateId)
       if (!isAllowed) throw new Error(`Not allowed; dest ${stateId} requisites not met`)
-      newHistory.push({ id: stateId })
+      newHistory.push(stateId)
     })
 
     return newHistory
   }
 
-  function isAllowed (history: State[], dest: StateId): boolean {
+  function isAllowed (history: History, dest: StateId): boolean {
     try {
       exec(history, dest) // transition does the check inside; there are no side effect
       return true
@@ -96,7 +96,7 @@ export function transitionConstructor (stateById: StateMapping) {
   }
 
   function getAllTransitions (): [StateId, StateId][] {
-    const beginnings = Object.values(stateById).filter(s => s.isBeginning)
+    const beginnings = Object.values(stateDefinitionById).filter(s => s.isBeginning)
 
     const recursion = (state: StateId, options: [StateId, StateId][]) : [StateId, StateId][] => {
       const stateOptions = getOptions(state)
@@ -118,9 +118,9 @@ export function transitionConstructor (stateById: StateMapping) {
     }, [])
   }
 
-  function getCurrentOptions (history: State[]): StateId[] {
-    const currentState = findLatestState(stateById, history)
-    if (!currentState) return Object.values(stateById).filter(s => s.isBeginning).map(s => s.id) // empty; then only beginning states
+  function getCurrentOptions (history: History): StateId[] {
+    const currentState = findLatestState(stateDefinitionById, history)
+    if (!currentState) return Object.values(stateDefinitionById).filter(s => s.isBeginning).map(s => s.id) // empty; then only beginning states
     return getOptions(currentState.id)
   }
 
