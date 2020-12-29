@@ -1,4 +1,4 @@
-import { StateDefinition, Path, History } from '../@types/module'
+import { StateDefinition, Path, HistoryArray } from '../@types/module'
 import { createStateMachine } from './index'
 
 const testStates = [
@@ -57,17 +57,17 @@ const testStates = [
 describe('state machine', () => {
   const testSM = createStateMachine(testStates)
 
-  function transitionAlongPath (path: Path): History {
+  function transitionAlongPath (path: Path): HistoryArray {
     let history = []
     path.forEach((state) => {
-      history = testSM.transition.exec(history, state)
+      history = testSM.transition(history, state)
     })
     return history
   }
 
   describe('transition', () => {
     test('success; getAllTransitions', () => {
-      expect(testSM.transition.getAllTransitions()).toStrictEqual([
+      expect(testSM.getAllTransitions()).toStrictEqual([
         ['start', 'beginning'], ['beginning', 'option1'], ['option1', 'middle'], ['middle', 'middle'], ['middle', 'beginning'],
         ['beginning', 'option2a'], ['option2a', 'option2b'], ['option2b', 'middle'], ['middle', 'parallel1'], ['parallel1', 'parallel2'],
         ['parallel2', 'parallel1'], ['parallel1', 'end'], ['end', 'end'], ['parallel1', 'beginning'], ['parallel2', 'end'],
@@ -77,10 +77,10 @@ describe('state machine', () => {
 
     test('success; empty', () => {
       const emptyHistory = []
-      const options = testSM.transition.getCurrentOptions(emptyHistory)
+      const options = testSM.getTransitions(emptyHistory)
       expect(options).toStrictEqual(['start'])
 
-      const history = testSM.transition.exec(emptyHistory, 'start')
+      const history = testSM.transition(emptyHistory, 'start')
       expect(history).toStrictEqual(['start'])
     })
 
@@ -134,7 +134,7 @@ describe('state machine', () => {
       const path = ['start', 'beginning', 'option1', 'middle']
       const history = transitionAlongPath(path)
 
-      const options = testSM.transition.getCurrentOptions(history)
+      const options = testSM.getTransitions(history)
 
       expect(options).toStrictEqual(['middle', 'beginning', 'parallel1', 'parallel2'])
     })

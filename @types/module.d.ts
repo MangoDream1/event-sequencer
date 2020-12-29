@@ -11,4 +11,4 @@ export interface StateDefinition {
 
 export type StateId = string
 export type Path = StateId[]
-export type History = StateId[]
+export type HistoryArray = StateId[]
