@@ -1,10 +1,10 @@
 {
-  "name": "event-sequencer",
+  "name": "event-sequence-validator",
   "version": "0.1.0",
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "jest",
     "moveStatic": "cp -r src/* build ; find build/ -name \"*.ts\" -type f -delete ;",
     "build": "tsc && npm run moveStatic",
     "start": "npm run build; node build/index.js"

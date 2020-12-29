@@ -1,4 +1,4 @@
-import { InternalState, StateDefinition, StateMapping, History } from '../@types/module'
+import { StateDefinition, StateMapping, History } from '../@types/module'
 import { transitionConstructor } from './transition'
 
 export function createStateMachine (stateDefinitions: StateDefinition[]) {
@@ -6,9 +6,8 @@ export function createStateMachine (stateDefinitions: StateDefinition[]) {
   stateDefinitions.forEach(s => {
     stateDefinitionById[s.id] = {
       ...s,
-      transitions: s.transitions || [],
-      revertTransitions: s.revertTransitions || []
-    } as InternalState
+      transitions: s.transitions || []
+    } as StateDefinition
   })
 
   const transition = transitionConstructor(stateDefinitionById)
@@ -18,7 +17,6 @@ export function createStateMachine (stateDefinitions: StateDefinition[]) {
     return history.every((state, index) => {
       const _state = stateDefinitionById[state]
 
-      if (_state.isReverted) return true
       if (_state.isInternal) return true // skip internals
       return transition.isAllowed(history.slice(0, index), _state.id)
     })
