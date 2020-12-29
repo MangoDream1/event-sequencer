@@ -1,14 +1,13 @@
 
-export type StateMapping = {[id: string]: StateDefinition}
+export type EventMapping = {[id: string]: EventDefinition}
 
-export interface StateDefinition {
-  id: StateId,
-  transitions: StateId[],
-  AND?: StateId[]
+export interface EventDefinition {
+  id: EventId,
+  transitions: EventId[],
+  AND?: EventId[]
   isInternal?: boolean,
   isBeginning?: boolean,
 }
 
-export type StateId = string
-export type Path = StateId[]
-export type HistoryArray = StateId[]
+export type EventId = string
+export type EventSequence = EventId[]

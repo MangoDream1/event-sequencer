@@ -1,5 +1,5 @@
-import { StateDefinition, Path, HistoryArray } from '../@types/module'
-import { createStateMachine } from './index'
+import { EventDefinition, EventSequence } from '../@types/module'
+import { createEventSequencer } from './index'
 
 const testStates = [
   {
@@ -52,12 +52,12 @@ const testStates = [
     id: 'end',
     transitions: ['end']
   }
-] as StateDefinition[]
+] as EventDefinition[]
 
 describe('state machine', () => {
-  const testSM = createStateMachine(testStates)
+  const testSM = createEventSequencer(testStates)
 
-  function transitionAlongPath (path: Path): HistoryArray {
+  function transitionAlongPath (path: EventSequence): EventSequence {
     let history = []
     path.forEach((state) => {
       history = testSM.transition(history, state)

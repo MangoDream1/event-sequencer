@@ -1,18 +1,18 @@
-import { StateDefinition, StateMapping, HistoryArray, StateId, Path } from '../@types/module'
+import { EventDefinition, EventMapping, EventSequence, EventId } from '../@types/module'
 
-export function createStateMachine (stateDefinitions: StateDefinition[]) {
-  const stateDefinitionById: StateMapping = {}
+export function createEventSequencer (stateDefinitions: EventDefinition[]) {
+  const stateDefinitionById: EventMapping = {}
   stateDefinitions.forEach(s => {
     stateDefinitionById[s.id] = {
       ...s,
       transitions: s.transitions || []
-    } as StateDefinition
+    } as EventDefinition
   })
 
-  function _findTransitionRoutes (state: StateDefinition, path = [] as Path): ([StateDefinition, Path])[] {
+  function _findTransitionRoutes (state: EventDefinition, path = [] as EventSequence): ([EventDefinition, EventSequence])[] {
     const states = state.transitions.map(s => stateDefinitionById[s])
 
-    const externalTransitions: [StateDefinition, Path][] = states.filter(s => !s.isInternal).map(s => ([s, [...path, state.id, s.id]]))
+    const externalTransitions: [EventDefinition, EventSequence][] = states.filter(s => !s.isInternal).map(s => ([s, [...path, state.id, s.id]]))
 
     const internalStates = states.filter(s => s.isInternal)
     const internalTransitions = internalStates.flatMap(s => _findTransitionRoutes(s, [...path, state.id]))
@@ -20,7 +20,7 @@ export function createStateMachine (stateDefinitions: StateDefinition[]) {
     return [...externalTransitions, ...internalTransitions]
   }
 
-  function _isValidDestination (current: StateDefinition, dest: StateId): [boolean, Path] {
+  function _isValidDestination (current: EventDefinition, dest: EventId): [boolean, EventSequence] {
     const transitionRoutes = _findTransitionRoutes(current)
     const connection = transitionRoutes.find(([state]) => state.id === dest)
 
@@ -31,18 +31,18 @@ export function createStateMachine (stateDefinitions: StateDefinition[]) {
     return [true, connection[1]]
   }
 
-  function _getStateOptions (state: StateId): StateId[] {
+  function _getStateOptions (state: EventId): EventId[] {
     const _state = stateDefinitionById[state]
     return Array.from(new Set(_findTransitionRoutes(_state).flatMap(x => {
       return x[1].slice(1)
-    }))).reduce<StateId[]>((states, state) => {
+    }))).reduce<EventId[]>((states, state) => {
       if (stateDefinitionById[state].isInternal) return states
       states.push(state)
       return states
     }, [])
   }
 
-  function _findInvalid (history: HistoryArray): [number, number][] {
+  function _findInvalid (history: EventSequence): [number, number][] {
     const set = new Set(history)
     if (set.size === history.length) return [] // no duplicates; therefore no reverts
     const dupIndexes = history.reduce<{[key: string]: number[]}>((dupIndexes, s, index) => {
@@ -72,7 +72,7 @@ export function createStateMachine (stateDefinitions: StateDefinition[]) {
     }, [])
   }
 
-  function _removeInvalid (history: HistoryArray, invalidRanges: [number, number][]): HistoryArray {
+  function _removeInvalid (history: EventSequence, invalidRanges: [number, number][]): EventSequence {
     if (invalidRanges.length === 0) return history // nothing invalid; all good
 
     const start = 0
@@ -90,7 +90,7 @@ export function createStateMachine (stateDefinitions: StateDefinition[]) {
     return validRanges.flatMap(([x, y]) => history.slice(x, y))
   }
 
-  function _isAndAllowed (history: HistoryArray, dest: StateId) {
+  function _isAndAllowed (history: EventSequence, dest: EventId) {
     const destState = stateDefinitionById[dest]
     if (!destState.AND || !destState.AND.length) return true // no AND; therefore all allowed
     if (destState.id === history[history.length - 1]) return true // for repeating states with AND requirement
@@ -100,7 +100,7 @@ export function createStateMachine (stateDefinitions: StateDefinition[]) {
   }
 
   // uses transition since all checks in there
-  function _isAllowed (history: HistoryArray, dest: StateId): Boolean {
+  function _isAllowed (history: EventSequence, dest: EventId): Boolean {
     try {
       transition(history, dest)
       return true
@@ -109,7 +109,7 @@ export function createStateMachine (stateDefinitions: StateDefinition[]) {
     }
   }
 
-  function _findLatestState (stateById: StateMapping, history: HistoryArray) {
+  function _findLatestState (stateById: EventMapping, history: EventSequence) {
     return [...history].reverse().find(state => {
       const _state = stateById[state]
       return !_state.isInternal
@@ -122,7 +122,7 @@ export function createStateMachine (stateDefinitions: StateDefinition[]) {
    * @param dest the destination state
    * @param removeInvalid flag to remove the invalid states; default false
    */
-  function transition (history: HistoryArray, dest: StateId, removeInvalid = false): HistoryArray {
+  function transition (history: EventSequence, dest: EventId, removeInvalid = false): EventSequence {
     const currentStateId = _findLatestState(stateDefinitionById, history)
 
     if (!currentStateId) { // if history empty; only beginning state allowed
@@ -161,17 +161,16 @@ export function createStateMachine (stateDefinitions: StateDefinition[]) {
   /**
    * Gets all the allowed transitions in the state machine
    */
-  function getAllTransitions (): [StateId, StateId][] {
+  function getAllTransitions (): [EventId, EventId][] {
     const beginnings = Object.values(stateDefinitionById).filter(s => s.isBeginning)
 
-    const recursion = (state: StateId, options: [StateId, StateId][]) : [StateId, StateId][] => {
+    const recursion = (state: EventId, options: [EventId, EventId][]) : [EventId, EventId][] => {
       const stateOptions = _getStateOptions(state)
       if (!stateOptions.length) return options
 
       return stateOptions.flatMap(option => {
-        const transition: [StateId, StateId] = [state, option]
+        const transition: [EventId, EventId] = [state, option]
         if (options.some(([A, B]) => state === A && option === B)) return options
-        // if (state === option) return options
 
         return recursion(option, [...options, transition])
       })
@@ -180,7 +179,7 @@ export function createStateMachine (stateDefinitions: StateDefinition[]) {
     const allOptions = beginnings.flatMap(b => recursion(b.id, []))
 
     // remove duplicates
-    return allOptions.reduce<[StateId, StateId][]>((allOptions, [A, B]) => {
+    return allOptions.reduce<[EventId, EventId][]>((allOptions, [A, B]) => {
       if (allOptions.some(([C, D]) => A === C && B === D)) return allOptions
       return [...allOptions, [A, B]]
     }, [])
@@ -190,7 +189,7 @@ export function createStateMachine (stateDefinitions: StateDefinition[]) {
    * Gets all the allowed transitions in that point of time based on history array
    * @param history history array
    */
-  function getTransitions (history: HistoryArray): StateId[] {
+  function getTransitions (history: EventSequence): EventId[] {
     const currentState = _findLatestState(stateDefinitionById, history)
     if (!currentState) return Object.values(stateDefinitionById).filter(s => s.isBeginning).map(s => s.id) // empty; then only beginning states
     return _getStateOptions(currentState)
@@ -200,7 +199,7 @@ export function createStateMachine (stateDefinitions: StateDefinition[]) {
    * Checks if the history is valid; i.e. the transitions where allowed at each point in time
    * @param history history array
    */
-  function checkValidity (history: HistoryArray) {
+  function checkValidity (history: EventSequence) {
     return history.every((state, index) => {
       return _isAllowed(history.slice(0, index), state)
     })
