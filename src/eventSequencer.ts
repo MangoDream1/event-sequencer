@@ -3,16 +3,16 @@ import { EventDefinition, EventMapping, EventSequence, EventId } from './types'
 export type EventSequencer = ReturnType<typeof createEventSequencer>
 
 export function createEventSequencer (eventDefinitions: EventDefinition[]) {
-  const eventDefinitionById: EventMapping = {}
+  const idToEventDefinition: EventMapping = {}
   eventDefinitions.forEach(s => {
-    eventDefinitionById[s.id] = {
+    idToEventDefinition[s.id] = {
       ...s,
       transitions: s.transitions || []
     } as EventDefinition
   })
 
   function _findTransitionRoutes (event: EventDefinition, path = [] as EventSequence): ([EventDefinition, EventSequence])[] {
-    const events = event.transitions.map(s => eventDefinitionById[s])
+    const events = event.transitions.map(s => idToEventDefinition[s])
 
     const externalTransitions: [EventDefinition, EventSequence][] = events.filter(s => !s.isInternal).map(s => ([s, [...path, event.id, s.id]]))
 
@@ -23,7 +23,7 @@ export function createEventSequencer (eventDefinitions: EventDefinition[]) {
   }
 
   function _areEventsConnected (from: EventId, to: EventId): [boolean, EventSequence] {
-    const fromDefinition = eventDefinitionById[from]
+    const fromDefinition = idToEventDefinition[from]
     const transitionRoutes = _findTransitionRoutes(fromDefinition)
     const connection = transitionRoutes.find(([event]) => event.id === to)
 
@@ -35,11 +35,11 @@ export function createEventSequencer (eventDefinitions: EventDefinition[]) {
   }
 
   function _getEventOptions (event: EventId): EventId[] {
-    const _event = eventDefinitionById[event]
+    const _event = idToEventDefinition[event]
     return Array.from(new Set(_findTransitionRoutes(_event).flatMap(x => {
       return x[1].slice(1)
     }))).reduce<EventId[]>((events, event) => {
-      if (eventDefinitionById[event].isInternal) return events
+      if (idToEventDefinition[event].isInternal) return events
       events.push(event)
       return events
     }, [])
@@ -94,7 +94,7 @@ export function createEventSequencer (eventDefinitions: EventDefinition[]) {
   }
 
   function _isAndAllowed (history: EventSequence, dest: EventId) {
-    const destEvent = eventDefinitionById[dest]
+    const destEvent = idToEventDefinition[dest]
     if (!destEvent.AND || !destEvent.AND.length) return true // no AND; therefore all allowed
     if (destEvent.id === history[history.length - 1]) return true // for repeating events with AND requirement
 
@@ -131,14 +131,14 @@ export function createEventSequencer (eventDefinitions: EventDefinition[]) {
    * @param removeInvalid flag to remove the invalid events; default false
    */
   function transition (history: EventSequence, dest: EventId, removeInvalid = false): EventSequence {
-    const currentEventId = _findLatestEvent(eventDefinitionById, history)
+    const currentEventId = _findLatestEvent(idToEventDefinition, history)
 
     if (!currentEventId) { // if history empty; only beginning event allowed
-      const event = eventDefinitionById[dest]
+      const event = idToEventDefinition[dest]
       if (!event.isBeginning) {
         throw new Error('Not allowed; history is empty, only beginning allowed')
       }
-      return [eventDefinitionById[dest].id]
+      return [idToEventDefinition[dest].id]
     }
 
     const [valid, path] = _areEventsConnected(currentEventId, dest)
@@ -162,14 +162,14 @@ export function createEventSequencer (eventDefinitions: EventDefinition[]) {
       const newInvalids = _findInvalid(newHistory)
       newHistory = _removeInvalid(newHistory, newInvalids)
     }
-    return newHistory.filter(id => !eventDefinitionById[id].isInternal)
+    return newHistory.filter(id => !idToEventDefinition[id].isInternal)
   }
 
   /**
    * Gets all the allowed transitions in the event machine
    */
   function getAllTransitions (): [EventId, EventId][] {
-    const beginnings = Object.values(eventDefinitionById).filter(s => s.isBeginning)
+    const beginnings = Object.values(idToEventDefinition).filter(s => s.isBeginning)
 
     const recursion = (event: EventId, options: [EventId, EventId][]) : [EventId, EventId][] => {
       const eventOptions = _getEventOptions(event)
@@ -197,9 +197,22 @@ export function createEventSequencer (eventDefinitions: EventDefinition[]) {
    * @param history history array
    */
   function getAllowedTransitions (history: EventSequence): EventId[] {
-    const currentEvent = _findLatestEvent(eventDefinitionById, history)
-    if (!currentEvent) return Object.values(eventDefinitionById).filter(s => s.isBeginning).map(s => s.id) // empty; then only beginning events
+    const currentEvent = _findLatestEvent(idToEventDefinition, history)
+    if (!currentEvent) return Object.values(idToEventDefinition).filter(s => s.isBeginning).map(s => s.id) // empty; then only beginning events
     return _getEventOptions(currentEvent).filter(event => isTransitionAllowed(history, event))
+  }
+
+  /**
+   * Get all external events registered
+   */
+  function getAllEvents (): EventId[] {
+    return Object.values(idToEventDefinition).reduce<EventId[]>((externalEvents, event) => {
+      if (!event.isInternal) {
+        externalEvents.push(event.id)
+      }
+
+      return externalEvents
+    }, [])
   }
 
   /**
@@ -217,6 +230,7 @@ export function createEventSequencer (eventDefinitions: EventDefinition[]) {
     getAllowedTransitions,
     checkValidity,
     transition,
-    isTransitionAllowed
+    isTransitionAllowed,
+    getAllEvents
   }
 }
