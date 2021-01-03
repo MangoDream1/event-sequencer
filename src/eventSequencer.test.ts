@@ -1,5 +1,5 @@
 import { EventDefinition, EventSequence } from '../@types/module'
-import { createEventSequencer } from './index'
+import { createEventSequencer } from './eventSequencer'
 
 const testStates = [
   {

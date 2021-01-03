@@ -1,4 +1,3 @@
-
 export type EventMapping = {[id: string]: EventDefinition}
 
 export interface EventDefinition {
