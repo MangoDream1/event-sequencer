@@ -1,4 +1,4 @@
-import { EventDefinition, EventSequence } from '../@types/module'
+import { EventDefinition, EventSequence } from './types'
 import { createEventSequencer } from './eventSequencer'
 
 const testStates = [
@@ -77,7 +77,7 @@ describe('state machine', () => {
 
     test('success; empty', () => {
       const emptyHistory = []
-      const options = testSM.getTransitions(emptyHistory)
+      const options = testSM.getAllowedTransitions(emptyHistory)
       expect(options).toStrictEqual(['start'])
 
       const history = testSM.transition(emptyHistory, 'start')
@@ -134,7 +134,7 @@ describe('state machine', () => {
       const path = ['start', 'beginning', 'option1', 'middle']
       const history = transitionAlongPath(path)
 
-      const options = testSM.getTransitions(history)
+      const options = testSM.getAllowedTransitions(history)
 
       expect(options).toStrictEqual(['middle', 'beginning', 'parallel1', 'parallel2'])
     })

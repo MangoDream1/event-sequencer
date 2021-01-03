@@ -1,2 +1,2 @@
-export * from '../@types/module'
+export * from './types'
 export * from './eventSequencer'
