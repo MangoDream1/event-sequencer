@@ -2,30 +2,30 @@ import { EventDefinition, EventMapping, EventSequence, EventId } from './types'
 
 export type EventSequencer = ReturnType<typeof createEventSequencer>
 
-export function createEventSequencer (stateDefinitions: EventDefinition[]) {
-  const stateDefinitionById: EventMapping = {}
-  stateDefinitions.forEach(s => {
-    stateDefinitionById[s.id] = {
+export function createEventSequencer (eventDefinitions: EventDefinition[]) {
+  const eventDefinitionById: EventMapping = {}
+  eventDefinitions.forEach(s => {
+    eventDefinitionById[s.id] = {
       ...s,
       transitions: s.transitions || []
     } as EventDefinition
   })
 
-  function _findTransitionRoutes (state: EventDefinition, path = [] as EventSequence): ([EventDefinition, EventSequence])[] {
-    const events = state.transitions.map(s => stateDefinitionById[s])
+  function _findTransitionRoutes (event: EventDefinition, path = [] as EventSequence): ([EventDefinition, EventSequence])[] {
+    const events = event.transitions.map(s => eventDefinitionById[s])
 
-    const externalTransitions: [EventDefinition, EventSequence][] = events.filter(s => !s.isInternal).map(s => ([s, [...path, state.id, s.id]]))
+    const externalTransitions: [EventDefinition, EventSequence][] = events.filter(s => !s.isInternal).map(s => ([s, [...path, event.id, s.id]]))
 
     const internalevents = events.filter(s => s.isInternal)
-    const internalTransitions = internalevents.flatMap(s => _findTransitionRoutes(s, [...path, state.id]))
+    const internalTransitions = internalevents.flatMap(s => _findTransitionRoutes(s, [...path, event.id]))
 
     return [...externalTransitions, ...internalTransitions]
   }
 
   function _areEventsConnected (from: EventId, to: EventId): [boolean, EventSequence] {
-    const fromDefinition = stateDefinitionById[from]
+    const fromDefinition = eventDefinitionById[from]
     const transitionRoutes = _findTransitionRoutes(fromDefinition)
-    const connection = transitionRoutes.find(([state]) => state.id === to)
+    const connection = transitionRoutes.find(([event]) => event.id === to)
 
     if (!connection) { // not possible to reach directly; invalid
       return [false, []]
@@ -34,13 +34,13 @@ export function createEventSequencer (stateDefinitions: EventDefinition[]) {
     return [true, connection[1]]
   }
 
-  function _getStateOptions (state: EventId): EventId[] {
-    const _state = stateDefinitionById[state]
-    return Array.from(new Set(_findTransitionRoutes(_state).flatMap(x => {
+  function _getEventOptions (event: EventId): EventId[] {
+    const _event = eventDefinitionById[event]
+    return Array.from(new Set(_findTransitionRoutes(_event).flatMap(x => {
       return x[1].slice(1)
-    }))).reduce<EventId[]>((events, state) => {
-      if (stateDefinitionById[state].isInternal) return events
-      events.push(state)
+    }))).reduce<EventId[]>((events, event) => {
+      if (eventDefinitionById[event].isInternal) return events
+      events.push(event)
       return events
     }, [])
   }
@@ -94,18 +94,18 @@ export function createEventSequencer (stateDefinitions: EventDefinition[]) {
   }
 
   function _isAndAllowed (history: EventSequence, dest: EventId) {
-    const destState = stateDefinitionById[dest]
-    if (!destState.AND || !destState.AND.length) return true // no AND; therefore all allowed
-    if (destState.id === history[history.length - 1]) return true // for repeating events with AND requirement
+    const destEvent = eventDefinitionById[dest]
+    if (!destEvent.AND || !destEvent.AND.length) return true // no AND; therefore all allowed
+    if (destEvent.id === history[history.length - 1]) return true // for repeating events with AND requirement
 
-    const lookBackLength = destState.AND.length
-    return history.slice(-lookBackLength).every(h => destState.AND?.includes(h)) // every needs to be true
+    const lookBackLength = destEvent.AND.length
+    return history.slice(-lookBackLength).every(h => destEvent.AND?.includes(h)) // every needs to be true
   }
 
-  function _findLatestState (stateById: EventMapping, history: EventSequence) {
-    return [...history].reverse().find(state => {
-      const _state = stateById[state]
-      return !_state.isInternal
+  function _findLatestEvent (eventById: EventMapping, history: EventSequence) {
+    return [...history].reverse().find(event => {
+      const _event = eventById[event]
+      return !_event.isInternal
     })
   }
 
@@ -131,30 +131,30 @@ export function createEventSequencer (stateDefinitions: EventDefinition[]) {
    * @param removeInvalid flag to remove the invalid events; default false
    */
   function transition (history: EventSequence, dest: EventId, removeInvalid = false): EventSequence {
-    const currentStateId = _findLatestState(stateDefinitionById, history)
+    const currentEventId = _findLatestEvent(eventDefinitionById, history)
 
-    if (!currentStateId) { // if history empty; only beginning state allowed
-      const state = stateDefinitionById[dest]
-      if (!state.isBeginning) {
+    if (!currentEventId) { // if history empty; only beginning event allowed
+      const event = eventDefinitionById[dest]
+      if (!event.isBeginning) {
         throw new Error('Not allowed; history is empty, only beginning allowed')
       }
-      return [stateDefinitionById[dest].id]
+      return [eventDefinitionById[dest].id]
     }
 
-    const [valid, path] = _areEventsConnected(currentStateId, dest)
-    if (!valid) throw new Error(`Not allowed; no path to destination; ${currentStateId} to ${dest}`)
+    const [valid, path] = _areEventsConnected(currentEventId, dest)
+    if (!valid) throw new Error(`Not allowed; no path to destination; ${currentEventId} to ${dest}`)
 
-    let newHistory = [...history.slice(0, -1)] // remove last, since first in path always currentState
-    path.forEach(stateId => {
+    let newHistory = [...history.slice(0, -1)] // remove last, since first in path always currentEvent
+    path.forEach(eventId => {
       const invalid = _findInvalid(newHistory)
       const _history = _removeInvalid(newHistory, invalid)
 
-      const isAllowed = _isAndAllowed(_history, stateId)
+      const isAllowed = _isAndAllowed(_history, eventId)
       if (!isAllowed) {
-        throw new Error(`Not allowed; dest ${stateId} requisites not met`)
+        throw new Error(`Not allowed; dest ${eventId} requisites not met`)
       }
 
-      newHistory.push(stateId)
+      newHistory.push(eventId)
     })
 
     // filter out internals
@@ -162,22 +162,22 @@ export function createEventSequencer (stateDefinitions: EventDefinition[]) {
       const newInvalids = _findInvalid(newHistory)
       newHistory = _removeInvalid(newHistory, newInvalids)
     }
-    return newHistory.filter(id => !stateDefinitionById[id].isInternal)
+    return newHistory.filter(id => !eventDefinitionById[id].isInternal)
   }
 
   /**
-   * Gets all the allowed transitions in the state machine
+   * Gets all the allowed transitions in the event machine
    */
   function getAllTransitions (): [EventId, EventId][] {
-    const beginnings = Object.values(stateDefinitionById).filter(s => s.isBeginning)
+    const beginnings = Object.values(eventDefinitionById).filter(s => s.isBeginning)
 
-    const recursion = (state: EventId, options: [EventId, EventId][]) : [EventId, EventId][] => {
-      const stateOptions = _getStateOptions(state)
-      if (!stateOptions.length) return options
+    const recursion = (event: EventId, options: [EventId, EventId][]) : [EventId, EventId][] => {
+      const eventOptions = _getEventOptions(event)
+      if (!eventOptions.length) return options
 
-      return stateOptions.flatMap(option => {
-        const transition: [EventId, EventId] = [state, option]
-        if (options.some(([A, B]) => state === A && option === B)) return options
+      return eventOptions.flatMap(option => {
+        const transition: [EventId, EventId] = [event, option]
+        if (options.some(([A, B]) => event === A && option === B)) return options
 
         return recursion(option, [...options, transition])
       })
@@ -197,9 +197,9 @@ export function createEventSequencer (stateDefinitions: EventDefinition[]) {
    * @param history history array
    */
   function getAllowedTransitions (history: EventSequence): EventId[] {
-    const currentState = _findLatestState(stateDefinitionById, history)
-    if (!currentState) return Object.values(stateDefinitionById).filter(s => s.isBeginning).map(s => s.id) // empty; then only beginning events
-    return _getStateOptions(currentState).filter(state => isTransitionAllowed(history, state))
+    const currentEvent = _findLatestEvent(eventDefinitionById, history)
+    if (!currentEvent) return Object.values(eventDefinitionById).filter(s => s.isBeginning).map(s => s.id) // empty; then only beginning events
+    return _getEventOptions(currentEvent).filter(event => isTransitionAllowed(history, event))
   }
 
   /**
@@ -207,8 +207,8 @@ export function createEventSequencer (stateDefinitions: EventDefinition[]) {
    * @param history history array
    */
   function checkValidity (history: EventSequence) {
-    return history.every((state, index) => {
-      return isTransitionAllowed(history.slice(0, index), state)
+    return history.every((event, index) => {
+      return isTransitionAllowed(history.slice(0, index), event)
     })
   }
 
