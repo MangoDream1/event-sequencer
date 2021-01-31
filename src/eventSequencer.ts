@@ -16,8 +16,8 @@ export function createEventSequencer (eventDefinitions: EventDefinition[]) {
 
     const externalTransitions: [EventDefinition, EventSequence][] = events.filter(s => !s.isInternal).map(s => ([s, [...path, event.id, s.id]]))
 
-    const internalevents = events.filter(s => s.isInternal)
-    const internalTransitions = internalevents.flatMap(s => _findTransitionRoutes(s, [...path, event.id]))
+    const internalEvents = events.filter(s => s.isInternal)
+    const internalTransitions = internalEvents.flatMap(s => _findTransitionRoutes(s, [...path, event.id]))
 
     return [...externalTransitions, ...internalTransitions]
   }
@@ -75,7 +75,8 @@ export function createEventSequencer (eventDefinitions: EventDefinition[]) {
     }, [])
   }
 
-  function _removeInvalid (history: EventSequence, invalidRanges: [number, number][]): EventSequence {
+  function _removeInvalid (history: EventSequence): EventSequence {
+    const invalidRanges = _findInvalid(history)
     if (invalidRanges.length === 0) return history // nothing invalid; all good
 
     const start = 0
@@ -94,12 +95,24 @@ export function createEventSequencer (eventDefinitions: EventDefinition[]) {
   }
 
   function _isAndAllowed (history: EventSequence, dest: EventId) {
-    const destEvent = idToEventDefinition[dest]
-    if (!destEvent.AND || !destEvent.AND.length) return true // no AND; therefore all allowed
-    if (destEvent.id === history[history.length - 1]) return true // for repeating events with AND requirement
+    const destDef = idToEventDefinition[dest]
+    if (!destDef.AND || !destDef.AND.length) return true // no AND; therefore all allowed
+    if (destDef.id === history[history.length - 1]) return true // for repeating events with AND requirement
 
-    const lookBackLength = destEvent.AND.length
-    return history.slice(-lookBackLength).every(h => destEvent.AND?.includes(h)) // every needs to be true
+    const lookBackLength = destDef.AND.length
+    return history.slice(-lookBackLength).every(h => destDef.AND?.includes(h)) // every needs to be true
+  }
+
+  function _isRepeatAllowed (history: EventSequence, dest: EventId) {
+    const destDef = idToEventDefinition[dest]
+    if (destDef.isRepeatable) return true // if event repeatable; always allowed
+    if (history.indexOf(dest) === -1) return true // if event has not occurred yet; allowed
+
+    // apply dest and remove invalids; therefore simulating revert
+    const historyAfterRevert = _removeInvalid([...history, dest]).slice(0, -1)
+
+    // after applying potential revert; check if dest is in array
+    return historyAfterRevert.indexOf(dest) === -1
   }
 
   function _findLatestEvent (eventById: EventMapping, history: EventSequence) {
@@ -146,10 +159,8 @@ export function createEventSequencer (eventDefinitions: EventDefinition[]) {
 
     let newHistory = [...history.slice(0, -1)] // remove last, since first in path always currentEvent
     path.forEach(eventId => {
-      const invalid = _findInvalid(newHistory)
-      const _history = _removeInvalid(newHistory, invalid)
-
-      const isAllowed = _isAndAllowed(_history, eventId)
+      const prunedHistory = _removeInvalid(newHistory)
+      const isAllowed = _isAndAllowed(prunedHistory, eventId) && _isRepeatAllowed(prunedHistory, eventId)
       if (!isAllowed) {
         throw new Error(`Not allowed; dest ${eventId} requisites not met`)
       }
@@ -159,8 +170,7 @@ export function createEventSequencer (eventDefinitions: EventDefinition[]) {
 
     // filter out internals
     if (removeInvalid) {
-      const newInvalids = _findInvalid(newHistory)
-      newHistory = _removeInvalid(newHistory, newInvalids)
+      newHistory = _removeInvalid(newHistory)
     }
     return newHistory.filter(id => !idToEventDefinition[id].isInternal)
   }

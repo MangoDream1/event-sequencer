@@ -6,6 +6,7 @@ export interface EventDefinition {
   AND?: EventId[]
   isInternal?: boolean,
   isBeginning?: boolean,
+  isRepeatable?: boolean
 }
 
 export type EventId = string

@@ -28,7 +28,8 @@ const testStates = [
     transitions: ['middle']
   }, {
     id: 'middle',
-    transitions: ['parallelStart', 'middle', 'beginning']
+    transitions: ['parallelStart', 'middle', 'beginning'],
+    isRepeatable: true
   }, {
     id: 'parallelStart',
     isInternal: true,
@@ -50,6 +51,7 @@ const testStates = [
     transitions: ['end', 'beginning']
   }, {
     id: 'end',
+    isRepeatable: true,
     transitions: ['end']
   }
 ] as EventDefinition[]
@@ -146,6 +148,11 @@ describe('state machine', () => {
 
     test('failure; repeating', () => {
       const path = ['start', 'beginning', 'option1', 'option1', 'option1', 'option1', 'option1']
+      expect(() => transitionAlongPath(path)).toThrowError()
+    })
+
+    test('failure; parallel repeating', () => {
+      const path = ['start', 'beginning', 'option1', 'middle', 'parallel1', 'parallel2', 'parallel1']
       expect(() => transitionAlongPath(path)).toThrowError()
     })
 
