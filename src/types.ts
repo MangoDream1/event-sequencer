@@ -1,6 +1,4 @@
-export type EventMapping = {[id: string]: EventDefinition}
-
-export interface EventDefinition {
+export type Event = {
   id: EventId,
   transitions: EventId[],
   AND?: EventId[]
@@ -8,5 +6,12 @@ export interface EventDefinition {
   isBeginning?: boolean,
 }
 
+export interface Transition {
+  from: EventId,
+  to: EventId,
+  id: TransitionId,
+  path: EventId[],
+}
+
 export type EventId = string
-export type EventSequence = EventId[]
+export type TransitionId = string

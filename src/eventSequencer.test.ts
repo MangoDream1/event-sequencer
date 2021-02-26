@@ -1,7 +1,7 @@
-import { EventDefinition, EventSequence } from './types'
-import { createEventSequencer } from './eventSequencer'
+import { Event, EventId } from './types'
+import { EventSequencer } from './eventSequencer'
 
-const testStates = [
+const testStates: Event[] = [
   {
     id: 'start',
     isBeginning: true,
@@ -52,35 +52,40 @@ const testStates = [
     id: 'end',
     transitions: ['end']
   }
-] as EventDefinition[]
+]
 
 describe('state machine', () => {
-  const testSM = createEventSequencer(testStates)
+  const testSM = new EventSequencer(testStates)
 
-  function transitionAlongPath (path: EventSequence): EventSequence {
+  function transitionAlongPath (path: EventId[]): EventId[] {
     let history = []
     path.forEach((state) => {
-      history = testSM.transition(history, state)
+      history = testSM.executeTransition(history, state)
     })
     return history
   }
 
   describe('transition', () => {
     test('success; getAllTransitions', () => {
-      expect(testSM.getAllTransitions()).toStrictEqual([
-        ['start', 'beginning'], ['beginning', 'option1'], ['option1', 'middle'], ['middle', 'middle'], ['middle', 'beginning'],
-        ['beginning', 'option2a'], ['option2a', 'option2b'], ['option2b', 'middle'], ['middle', 'parallel1'], ['parallel1', 'parallel2'],
-        ['parallel2', 'parallel1'], ['parallel1', 'end'], ['end', 'end'], ['parallel1', 'beginning'], ['parallel2', 'end'],
-        ['parallel2', 'beginning'], ['middle', 'parallel2']
-      ])
+      const transitions = testSM.getAllTransitions()
+      const expectedTransitions = [
+        [null, 'start'], ['start', 'beginning'], ['beginning', 'option1'], ['beginning', 'option2a'], ['option1', 'middle'],
+        ['option2a', 'option2b'], ['option2b', 'middle'], ['middle', 'middle'], ['middle', 'beginning'],
+        ['middle', 'parallel1'], ['middle', 'parallel2'], ['parallel1', 'parallel2'], ['parallel1', 'end'],
+        ['parallel1', 'beginning'], ['parallel2', 'parallel1'], ['parallel2', 'end'], ['parallel2', 'beginning'],
+        ['end', 'end']
+      ]
+
+      expect(transitions).toEqual(expect.arrayContaining(expectedTransitions))
+      expect(transitions.length).toBe(expectedTransitions.length)
     })
 
     test('success; empty', () => {
       const emptyHistory = []
-      const options = testSM.getAllowedTransitions(emptyHistory)
+      const options = testSM.getAllowedDestinations(emptyHistory)
       expect(options).toStrictEqual(['start'])
 
-      const history = testSM.transition(emptyHistory, 'start')
+      const history = testSM.executeTransition(emptyHistory, 'start')
       expect(history).toStrictEqual(['start'])
     })
 
@@ -97,7 +102,14 @@ describe('state machine', () => {
         'middle', 'parallel1', 'parallel2', 'end'
       ]
 
-      const history = transitionAlongPath(path)
+      let history = []
+      path.forEach((state) => {
+        const allowed = testSM.getAllowedDestinations(history)
+        expect(allowed).toEqual(expect.arrayContaining([state]))
+
+        history = testSM.executeTransition(history, state)
+      })
+
       expect(history).toStrictEqual(newHistory)
     })
 
@@ -134,7 +146,7 @@ describe('state machine', () => {
       const path = ['start', 'beginning', 'option1', 'middle']
       const history = transitionAlongPath(path)
 
-      const options = testSM.getAllowedTransitions(history)
+      const options = testSM.getAllowedDestinations(history)
 
       expect(options).toStrictEqual(['middle', 'beginning', 'parallel1', 'parallel2'])
     })
