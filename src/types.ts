@@ -6,12 +6,4 @@ export type Event = {
   isBeginning?: boolean,
 }
 
-export interface Transition {
-  from: EventId,
-  to: EventId,
-  id: TransitionId,
-  path: EventId[],
-}
-
 export type EventId = string
-export type TransitionId = string

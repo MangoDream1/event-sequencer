@@ -1,12 +1,13 @@
-import { Event, EventId, Transition, TransitionId } from './types'
+import { Event, EventId } from './types'
 
-function _createTransitionId (transition: Omit<Transition, 'id'>) {
-  return `${transition.from}-${transition.to}`
+interface Transition {
+  from: EventId,
+  to: EventId,
+  path: EventId[],
 }
 
 export class EventSequencer {
   #idToEvent: Record<string, Event> = {}
-  #idToTransition: Record<string, Transition> = {}
   #fromToDestToTransition: Record<string, Record<string, Transition>> = {}
   #beginningEvents: EventId[] = []
 
@@ -25,8 +26,6 @@ export class EventSequencer {
 
       const transitions = this._findEventTransitions(e)
       transitions.forEach(t => {
-        this.#idToTransition[t.id] = t
-
         if (!this.#fromToDestToTransition[t.from]) this.#fromToDestToTransition[t.from] = {}
         this.#fromToDestToTransition[t.from][t.to] = t
       })
@@ -37,8 +36,7 @@ export class EventSequencer {
     const events = event.transitions.map(s => this.#idToEvent[s])
 
     const externalTransitions: Transition[] = events.filter(to => !to.isInternal).map(to => {
-      const transition = { to: to.id, from: path[0] || event.id, path: [...path, event.id, to.id] }
-      return { ...transition, id: _createTransitionId(transition) }
+      return { to: to.id, from: path[0] || event.id, path: [...path, event.id, to.id] }
     })
 
     const internalEvents = events.filter(to => to.isInternal)
@@ -112,14 +110,14 @@ export class EventSequencer {
   }
 
   /**
-   * Checks if the transition is allowed; returns boolean
+   * Checks if the transition to dest is allowed; returns boolean
    * Note: it uses the `transition` function due to it containing all the checks
    * @param history
    * @param dest
    */
-  isTransitionAllowed (history: EventId[], transitionId: TransitionId): boolean {
+  isTransitionAllowed (history: EventId[], destId: EventId): boolean {
     try {
-      this.executeTransition(history, transitionId)
+      this.executeTransition(history, destId)
       return true
     } catch (error) {
       return false
@@ -174,9 +172,8 @@ export class EventSequencer {
    * Gets all the allowed transitions in the event machine
    */
   getAllTransitions (): [null | EventId, EventId][] {
-    const transitions: [EventId, EventId][] = Object.values(this.#idToTransition).map(t => [t.from, t.to])
+    const transitions: [EventId, EventId][] = Object.values(this.#fromToDestToTransition).flatMap(dest => Object.values(dest)).map(t => [t.from, t.to])
     const beginningTransitions: [null, EventId][] = this.#beginningEvents.map(id => [null, id])
-
     return [...beginningTransitions, ...transitions]
   }
 
