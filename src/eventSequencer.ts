@@ -6,12 +6,22 @@ interface Transition {
   path: EventId[],
 }
 
+function _isEvent (event: any): event is Event {
+  if (!event.id) return false
+  if (!event.transitions || !Array.isArray(event.transitions)) return false
+  return true
+}
+
 export class EventSequencer {
   #idToEvent: Record<string, Event> = {}
   #fromToDestToTransition: Record<string, Record<string, Transition>> = {}
   #beginningEvents: EventId[] = []
 
   constructor (events: Event[]) {
+    if (events.some(event => !_isEvent(event))) {
+      throw new Error('Invalid event found')
+    }
+
     this.#idToEvent = events.reduce((idToEvent, e) => {
       idToEvent[e.id] = e
       return idToEvent
