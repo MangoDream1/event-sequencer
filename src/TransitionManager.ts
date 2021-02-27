@@ -26,14 +26,18 @@ export class TransitionManager {
     })
   }
 
-  _createTransitionId (from: EventId | null, to: EventId) {
+  private _createTransitionId (from: EventId | null, to: EventId) {
     if (!from) return to
     return `${from}-${to}`
   }
 
   getAllowedTransitions (history: EventId[]) {
     const allowedDestinations = this.sequencer.getAllowedDestinations(history)
-    return allowedDestinations.flatMap(dest => this.#destToIncomingTransitions[dest]).map(t => t.id)
+    const current = history[history.length - 1]
+
+    return allowedDestinations.flatMap(dest => this.#destToIncomingTransitions[dest]
+      .filter(t => !current || t.from === current)
+    ).map(t => t.id)
   }
 
   getAllTransitions () {
